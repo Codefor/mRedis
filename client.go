@@ -3,36 +3,20 @@ package main
 import (
 	"bufio"
 	"bytes"
-    "errors"
+	"errors"
+	"fmt"
+	"log"
 	"net"
-    "log"
+	//"strconv"
+	"strings"
 )
 
 const (
-	REDIS_IOBUF_LEN     = 1024 * 16
 	REDIS_REQ_INLINE    = 1
 	REDIS_REQ_MULTIBULK = 2
 )
 
-type redisCommandProc func(c *redisClient)
-
-type redisGetKeysProc func(cmd *redisCommand, argv *robj, argc int, numkeys *int, flags int) *int
-
-type redisCommand struct {
-	name   string
-	proc   *redisCommandProc
-	arity  int
-	sflags []byte /* Flags as string represenation, one char per flag. */
-	flags  int    /* The actual flags, obtained from the 'sflags' field. */
-	/* Use a function to determine keys arguments in a command line. */
-	getkeys_proc *redisGetKeysProc
-	/* What keys should be loaded in background when calling this command? */
-	firstkey     int /* The first argument that's a key (0 = no keys) */
-	lastkey      int /* THe last argument that's a key */
-	keystep      int /* The step between first and last key */
-	microseconds int64
-	calls        int64
-}
+type redisGetKeysProc func(cmd *redisCommand, argv **robj, argc int, numkeys *int, flags int) *int
 
 type redisClient struct {
 	c    *net.TCPConn
@@ -43,30 +27,134 @@ type redisClient struct {
 
 	qbuf []byte //query input buffer
 
-	qbufi   int //query buffer idx
-	qbufl   int //query buffer len
-	reqtype int //default 0
-    multibulklen int64
-    bulklen int64
-	lastErr error
+	qbufi        int //query buffer idx
+	qbufl        int //query buffer len
+	reqtype      int //default 0
+	multibulklen int64
+	bulklen      int64
+	lastErr      error
+
+	cmd     *redisCommand
+	lastcmd *redisCommand
+
+	/* Response buffer */
+	bufpos int
+	wbuf   []byte
+}
+
+func (c *redisClient) addReplyLongLong(ll int64) {
+	if ll == 0 {
+		c.addReply(shared.czero)
+	} else if ll == 1 {
+		c.addReply(shared.cone)
+	} else {
+		c.addReplyLongLongWithPrefix(ll, byte(':'))
+	}
+}
+
+func (c *redisClient) addReplyLongLongWithPrefix(ll int64, prefix byte) {
+	var (
+		buf [128]byte
+		l   int
+	)
+
+	if prefix == count_byte && ll < REDIS_SHARED_BULKHDR_LEN {
+		c.addReply(shared.mbulkhdr[ll])
+		return
+	} else if prefix == size_byte && ll < REDIS_SHARED_BULKHDR_LEN {
+		c.addReply(shared.bulkhdr[ll])
+		return
+	}
+
+	buf[0] = prefix
+	l = ll2string(buf[1:], ll)
+	buf[l+1] = byte('\r')
+	buf[l+2] = byte('\n')
+	c.addReplyString(buf[:l+2])
+}
+
+func (c *redisClient) addReplyString(b []byte) {
+}
+
+func (c *redisClient) addReplyBulkLen(o *robj) {
+	var l int64
+	if o.encoding == REDIS_ENCODING_RAW {
+		l = int64(len(o.ptr.(string)))
+	} else {
+		l = 10
+	}
+	c.addReplyLongLongWithPrefix(l, '$')
+}
+
+func (c *redisClient) addReplyBulk(o *robj) {
+	c.addReplyBulkLen(o)
+	c.addReply(o)
+	c.addReply(shared.crlf)
 }
 
 func (c *redisClient) addReply(o *robj) {
-	c.bufw.Write([]byte("-ERR " + "hello" +  "\r\n"))
-	c.bufw.Flush()
+	log.Println(o)
+	if o.encoding == REDIS_ENCODING_RAW {
+		c.bufw.Write([]byte(o.ptr.(string)))
+	} else if o.encoding == REDIS_ENCODING_INT {
+		//length := ll2string(c.wbuf, o.ptr.(int64))
+		//c.bufw.Write([]byte(strconv.FormatInt(o.ptr.(int64), 10) + "\r\n"))
+	}
+	log.Println("buffer writer,buffered:", c.bufw.Buffered(), " avai:", c.bufw.Available())
 }
 
 func (c *redisClient) addReplyError(msg string) {
 	c.bufw.Write([]byte("-ERR " + msg + "\r\n"))
-	c.bufw.Flush()
 }
 
-func (c *redisClient) processCommand() {
+func (c *redisClient) lookupCommand(cmd []byte) *redisCommand {
+	rc, present := redisCommandTable[strings.ToLower(string(cmd))]
+	if present {
+		return rc
+	} else {
+		return nil
+	}
+}
+
+func (c *redisClient) processCommand() int {
+	/**
+	 * return REDIS_OK if the client is still alive and valid
+	 * return REDIS_ERR otherwise(client is destroyed)
+	 */
 	if string(c.argv[0]) == "quit" {
 		c.addReply(shared.ok)
+		//client destroyed
+		return REDIS_OK
 	}
-    //log.Println("argv:",c.argv)
-	c.addReply(shared.ok)
+
+	c.cmd = c.lookupCommand(c.argv[0])
+	c.lastcmd = c.cmd
+
+	if c.cmd == nil {
+		c.addReplyError(fmt.Sprintf("unknown command '%s'", c.argv[0]))
+		goto END
+	} else if c.cmd.arity > 0 && c.cmd.arity != len(c.argv) {
+		c.addReplyError(fmt.Sprintf("wrong number of arguments for command '%s'", c.argv[0]))
+		goto END
+	}
+
+	log.Println(c.cmd, c.argv)
+	c.cmd.proc(c)
+	log.Println("bufw:", c.bufw.Buffered(), "avai:", c.bufw.Available())
+END:
+	c.bufw.Flush()
+	c.reset()
+
+	return REDIS_OK
+}
+
+func (c *redisClient) reset() int {
+	c.cmd = nil
+	c.argv = c.argv[:0]
+	c.reqtype = 0
+	c.multibulklen = 0
+	c.bulklen = -1
+	return REDIS_OK
 }
 
 func (c *redisClient) processInlineBuffer() int {
@@ -77,7 +165,7 @@ func (c *redisClient) processInlineBuffer() int {
 	}
 
 	c.qbufi += newline
-	for _, bf := range bytes.Split(c.qbuf[:newline],[]byte(" ")) {
+	for _, bf := range bytes.Split(c.qbuf[:newline-1], []byte(" ")) {
 		if len(bf) > 0 {
 			c.argv = append(c.argv, bf)
 		}
@@ -86,62 +174,62 @@ func (c *redisClient) processInlineBuffer() int {
 }
 
 func (c *redisClient) processMultibulkBuffer() int {
-    var idx int
-    if c.multibulklen  == 0{
-        //skip *
-        c.qbufi += 1
+	var idx int
+	if c.multibulklen == 0 {
+		//skip *
+		c.qbufi += 1
 
-        newline := bytes.IndexByte(c.qbuf[c.qbufi:], lf_byte)
-        if newline == -1 {
-            c.addReplyError("Protocol error: too big inline request")
-            return -1
-        }
+		newline := bytes.IndexByte(c.qbuf[c.qbufi:], lf_byte)
+		if newline == -1 {
+			c.addReplyError("Protocol error: too big inline request")
+			return -1
+		}
 
-        if newline > len(c.qbuf[c.qbufi:c.qbufl]) {
-            c.addReplyError("error")
-            return -1
-        }
-        //log.Println(c.qbuf[c.qbufi:c.qbufl],c.qbufi,c.qbuf[c.qbufi],c.qbuf[c.qbufi] != count_byte,count_byte)
-        c.multibulklen,idx = parseInt(c.qbuf[c.qbufi:])
-        //123\r\nabc
-        c.qbufi += idx+2
-    }
-    //log.Println(c.multibulklen,string(c.qbuf[c.qbufi:c.qbufl]),c.qbuf[c.qbufi:c.qbufl])
+		if newline > len(c.qbuf[c.qbufi:c.qbufl]) {
+			c.addReplyError("error")
+			return -1
+		}
+		//log.Println(c.qbuf[c.qbufi:c.qbufl],c.qbufi,c.qbuf[c.qbufi],c.qbuf[c.qbufi] != count_byte,count_byte)
+		c.multibulklen, idx = bytes2ll(c.qbuf[c.qbufi:])
+		//123\r\nabc
+		c.qbufi += idx + 2
+	}
+	//log.Println(c.multibulklen,string(c.qbuf[c.qbufi:c.qbufl]),c.qbuf[c.qbufi:c.qbufl])
 
-    for c.multibulklen >0{
-        //log.Println(c.multibulklen,c.bulklen)
-        //$2\r\nab
-        if c.bulklen == -1{
-            //log.Println(c.qbuf[c.qbufi:c.qbufl],lf_byte,bytes.IndexByte(c.qbuf[c.qbufi:c.qbufl],lf_byte))
-            newline := bytes.IndexByte(c.qbuf[c.qbufi:c.qbufl],lf_byte)
-            if newline == -1 {
-                c.lastErr = errors.New("some error")
-                break
-            }
+	for c.multibulklen > 0 {
+		//log.Println(c.multibulklen,c.bulklen)
+		//$2\r\nab
+		if c.bulklen == -1 {
+			//log.Println(c.qbuf[c.qbufi:c.qbufl],lf_byte,bytes.IndexByte(c.qbuf[c.qbufi:c.qbufl],lf_byte))
+			newline := bytes.IndexByte(c.qbuf[c.qbufi:c.qbufl], lf_byte)
+			if newline == -1 {
+				c.lastErr = errors.New("some error")
+				break
+			}
 
-            if c.qbuf[c.qbufi] != size_byte{
-                c.lastErr = errors.New("Protocol error: expected '$',found:" + string(c.qbuf[c.qbufi]))
-                return -1
-            }
+			if c.qbuf[c.qbufi] != size_byte {
+				c.lastErr = errors.New("Protocol error: expected '$',found:" + string(c.qbuf[c.qbufi]))
+				return -1
+			}
 
-            c.bulklen,idx = parseInt(c.qbuf[c.qbufi+1:])
-            c.qbufi += idx+3
-            //log.Println(c.bulklen,string(c.qbuf[c.qbufi:c.qbufl]))
-        }
-        //log.Println(c.qbuf[c.qbufi:int64(c.qbufi)+c.bulklen])
-        c.argv = append(c.argv,c.qbuf[c.qbufi:int64(c.qbufi)+c.bulklen])
-        c.qbufi += int(c.bulklen) + 2
+			c.bulklen, idx = bytes2ll(c.qbuf[c.qbufi+1:])
+			c.qbufi += idx + 3
+			//log.Println(c.bulklen,string(c.qbuf[c.qbufi:c.qbufl]))
+		}
+		//log.Println(c.qbuf[c.qbufi:int64(c.qbufi)+c.bulklen])
+		c.argv = append(c.argv, c.qbuf[c.qbufi:int64(c.qbufi)+c.bulklen])
+		c.qbufi += int(c.bulklen) + 2
 
-        //log.Println(c.argv)
-        c.bulklen = -1
-        c.multibulklen --
-    }
+		//log.Println(c.argv)
+		c.bulklen = -1
+		c.multibulklen--
+	}
 
-    return REDIS_OK
+	return REDIS_OK
 }
 
 func (c *redisClient) close() {
-    c.c.Close()
+	c.c.Close()
 }
 func (c *redisClient) readQuery() {
 	/**
@@ -155,9 +243,9 @@ func (c *redisClient) readQuery() {
 		return
 	}
 
-    //reset query buffer index
-    c.qbufi = 0
-    log.Println("query buffer:",c.qbuf[:c.qbufl],string(c.qbuf[:c.qbufl]))
+	//reset query buffer index
+	c.qbufi = 0
+	log.Println("query buffer:", c.qbuf[:c.qbufl], string(c.qbuf[:c.qbufl]))
 	for c.qbufi < c.qbufl {
 		//set query type
 		if c.reqtype == 0 {
@@ -170,16 +258,18 @@ func (c *redisClient) readQuery() {
 
 		if c.reqtype == REDIS_REQ_INLINE {
 			if c.processInlineBuffer() != REDIS_OK {
-                c.lastErr = errors.New("process Inline buffer error")
+				c.lastErr = errors.New("process Inline buffer error")
 				break
 			}
 		} else if c.reqtype == REDIS_REQ_MULTIBULK {
 			if c.processMultibulkBuffer() != REDIS_OK {
-                c.lastErr = errors.New("process Multi buffer error")
+				c.lastErr = errors.New("process Multi buffer error")
 				break
 			}
 		} else {
 			redisPanic("Unknown request type")
 		}
+		//should there be *2$3get$1a*3$3get$1a?
+		break
 	}
 }

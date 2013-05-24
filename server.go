@@ -2,22 +2,16 @@
 * a multi thread redis like server
 * @author: yugaohe@dangdang.com
 * @since:2013-05-18
-*/
+ */
 
 package main
 
 import (
 	"bufio"
-	"flag"
 	"log"
 	"net"
-	"os"
 	"strconv"
 	"time"
-)
-
-const (
-	REDIS_OK = 0
 )
 
 var (
@@ -25,10 +19,6 @@ var (
 	msgStop  = []byte("cmdStop")
 	msgStart = []byte("cmdContinue")
 )
-
-var shared sharedObjectsStruct
-
-type Db map[interface{}]interface{}
 
 type MServer struct {
 	host     string
@@ -51,36 +41,48 @@ func NewMServer(host string, port int) *MServer {
 	}
 
 	s.db = make(map[int]*Db, s.dbCnt)
+
+	for idx := 0; idx < s.dbCnt; idx++ {
+		s.db[idx] = NewDb(idx)
+	}
+
 	s.tcpAddr = s.getTCPAddr()
 	s.listener, _ = net.ListenTCP("tcp", s.tcpAddr)
-	s.timeout = 20 * time.Second
+	s.timeout = 6 * 3600 * time.Second
 
 	return &s
 }
 
 func (m *MServer) NewClient(c *net.TCPConn) *redisClient {
 	client := &redisClient{
-		c:    c,
-		bufr: bufio.NewReader(c),
-		bufw: bufio.NewWriter(c),
-		qbuf: make([]byte, 1024*16),
-        bulklen:-1,
+		c:       c,
+		bufr:    bufio.NewReader(c),
+		bufw:    bufio.NewWriter(c),
+		qbuf:    make([]byte, 1024*16),
+		bulklen: -1,
+		bufpos:  0,
+		//wbuf:    make([]byte, 1024*16),
 	}
 
+	//defualt select db 0
 	m.selectDB(client, 0)
 	return client
 }
 
-func (m *MServer) selectDB(c *redisClient, idx int) {
-	if idx > 0 && idx < m.dbCnt {
-		c.db = m.db[idx]
+func (m *MServer) selectDB(c *redisClient, idx int) int {
+	if idx < 0 || idx > m.dbCnt {
+		return REDIS_ERR
 	}
+
+	c.db = m.db[idx]
+
+	return REDIS_OK
 }
 
 func (m *MServer) getTCPAddr() (tcpAddr *net.TCPAddr) {
 	lAddr := net.JoinHostPort(m.host, strconv.Itoa(m.port))
 	tcpAddr, _ = net.ResolveTCPAddr("tcp", lAddr)
-    return
+	return
 }
 
 func (m *MServer) mainLoop() {
@@ -96,6 +98,7 @@ func (m *MServer) process(c *net.TCPConn) {
 	client := m.NewClient(c)
 
 	for {
+		log.Println("start another readQuery")
 		t := make(chan bool, 1)
 
 		go func() {
@@ -104,17 +107,22 @@ func (m *MServer) process(c *net.TCPConn) {
 		}()
 
 		select {
-            case <-t:
-                if client.lastErr != nil {
-                    goto DISCONNECT
-                }
-                client.processCommand()
-            case <-time.After(m.timeout):
-                goto DISCONNECT
+		case <-t:
+			if client.lastErr != nil {
+				log.Println("readQuery encountered error", client.lastErr)
+				goto DISCONNECT
+			}
+			log.Println("start process query")
+			client.processCommand()
+			log.Println("end process query")
+		case <-time.After(m.timeout):
+			log.Println("readQuery timeout")
+			goto DISCONNECT
 		}
+		log.Println("end another readQuery")
 	}
 DISCONNECT:
-    log.Println(client.lastErr)
+	log.Println(client.lastErr)
 	client.close()
 	log.Println(remoteAddr + " disconnected")
 }
@@ -127,23 +135,6 @@ func (m *MServer) readBulkData(bufr *bufio.Reader, size int) string {
 	return
 }
 */
-
-func main() {
-	log.SetFlags(23)
-
-	var port = flag.Int("p", 8080, "tcp listen port")
-	var help = flag.Bool("h", false, "print usage info")
-	flag.Parse()
-	if *help {
-		log.Println("multi Redis Server:")
-		flag.PrintDefaults()
-		os.Exit(1)
-	}
-
-	mRedisServer := NewMServer("", *port)
-
-	mRedisServer.mainLoop()
-}
 
 func assert(e error) {
 	if e != nil {
