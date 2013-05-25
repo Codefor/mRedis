@@ -58,15 +58,44 @@ func setnxCommand(c *redisClient) int {
 func setexCommand(c *redisClient) int {
 	return REDIS_OK
 }
+
 func psetexCommand(c *redisClient) int {
 	return REDIS_OK
 }
+
 func appendCommand(c *redisClient) int {
+	key := string(c.argv[1])
+	toappendvalue := string(c.argv[2])
+
+	value, present := c.db.dict[key]
+	var newvalue string
+	if present {
+		newvalue = value.(string) + toappendvalue
+	} else {
+		newvalue = toappendvalue
+	}
+
+	redisLog(REDIS_DEBUG, "append command", value)
+	c.db.set(key, newvalue)
+	c.addReplyLongLong(int64(len(newvalue)))
+
+	c.argv = c.argv[3:]
 	return REDIS_OK
 }
+
 func strlenCommand(c *redisClient) int {
+	key := string(c.argv[1])
+	if value, present := c.db.dict[key]; present {
+		redisLog(REDIS_DEBUG, "strlen command", value, present)
+		c.addReplyLongLong(int64(len(value.(string))))
+	} else {
+		c.addReply(shared.czero)
+	}
+
+	c.argv = c.argv[2:]
 	return REDIS_OK
 }
+
 func delCommand(c *redisClient) int {
 	return REDIS_OK
 }

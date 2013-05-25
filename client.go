@@ -62,15 +62,18 @@ func (c *redisClient) addReplyLongLong(ll int64) {
 }
 
 func (c *redisClient) addReplyLongLongWithPrefix(ll int64, prefix byte) {
+	redisLog(REDIS_DEBUG, "addReplyLongLongWithPrefix: ", ll, prefix)
 	var (
 		buf [128]byte
 		l   int
 	)
 
 	if prefix == count_byte && ll < REDIS_SHARED_BULKHDR_LEN {
+		//count_byte *
 		c.addReply(shared.mbulkhdr[ll])
 		return
 	} else if prefix == size_byte && ll < REDIS_SHARED_BULKHDR_LEN {
+		//size_byte $
 		c.addReply(shared.bulkhdr[ll])
 		return
 	}
@@ -79,10 +82,13 @@ func (c *redisClient) addReplyLongLongWithPrefix(ll int64, prefix byte) {
 	l = ll2string(buf[1:], ll)
 	buf[l+1] = byte('\r')
 	buf[l+2] = byte('\n')
-	c.addReplyString(buf[:l+2])
+	redisLog(REDIS_DEBUG, "addReplyLongLongWithPrefix ", buf[:l+3], string(buf[:l+3]))
+	c.addReplyString(buf[:l+3])
 }
 
 func (c *redisClient) addReplyString(b []byte) {
+	redisLog(REDIS_DEBUG, "addReply String", b, string(b))
+	c.bufw.Write(b)
 }
 
 func (c *redisClient) addReplyBulkLen(o *robj) {
@@ -106,6 +112,7 @@ func (c *redisClient) addReply(o *robj) {
 	if o.encoding == REDIS_ENCODING_RAW {
 		c.bufw.Write([]byte(o.ptr.(string)))
 	} else if o.encoding == REDIS_ENCODING_INT {
+		redisLog(REDIS_NOTICE, "addReply REDIS_ENCODING_INT")
 		//length := ll2string(c.wbuf, o.ptr.(int64))
 		//c.bufw.Write([]byte(strconv.FormatInt(o.ptr.(int64), 10) + "\r\n"))
 	}
