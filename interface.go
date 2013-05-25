@@ -1,7 +1,7 @@
 package main
 
 import (
-	"log"
+	"strconv"
 )
 
 type redisCommand struct {
@@ -26,6 +26,7 @@ func getCommand(c *redisClient) int {
 	//the value must be string
 	key := string(c.argv[1])
 	if value, present := c.db.dict[key]; present {
+		redisLog(REDIS_DEBUG, "get command", value, present)
 		o := createStringObject(value.(string), 0)
 		c.addReplyBulk(o)
 	} else {
@@ -41,9 +42,9 @@ func setCommand(c *redisClient) int {
 	key := c.argv[1]
 	value := string(c.argv[2])
 
-	log.Println("Command set:", string(key), string(value), c.argv)
+	redisLog(REDIS_NOTICE, "Command set:", string(key), string(value), c.argv)
 	c.db.set(string(key), value)
-	log.Println("key " + string(key) + " set:" + string(value))
+	redisLog(REDIS_NOTICE, "key "+string(key)+" set:"+string(value))
 
 	c.addReply(shared.ok)
 
@@ -299,8 +300,18 @@ func randomkeyCommand(c *redisClient) int {
 }
 
 func selectCommand(c *redisClient) int {
+	idx, _ := strconv.ParseInt(string(c.argv[1]), 10, 32)
+
+	if c.selectDB(int(idx)) != REDIS_OK {
+		c.addReplyError("invalid DB index")
+		return REDIS_ERR
+	} else {
+		c.addReply(shared.ok)
+	}
+
 	return REDIS_OK
 }
+
 func moveCommand(c *redisClient) int {
 	return REDIS_OK
 }
@@ -337,12 +348,23 @@ func pingCommand(c *redisClient) int {
 func echoCommand(c *redisClient) int {
 	return REDIS_OK
 }
+
 func saveCommand(c *redisClient) int {
-	return REDIS_OK
+	if mRedisServer.rdbSave("") != REDIS_OK {
+		c.addReply(shared.err)
+		return REDIS_ERR
+	} else {
+		c.addReply(shared.ok)
+		return REDIS_OK
+	}
 }
+
 func bgsaveCommand(c *redisClient) int {
+	go mRedisServer.rdbSave("")
+	c.addReply(shared.ok)
 	return REDIS_OK
 }
+
 func bgrewriteaofCommand(c *redisClient) int {
 	return REDIS_OK
 }

@@ -6,6 +6,15 @@ import (
 	"os"
 )
 
+//config
+const (
+	LOGLEVEL = 0
+)
+
+var (
+	mRedisServer *MServer
+)
+
 func main() {
 	log.SetFlags(23)
 
@@ -20,7 +29,7 @@ func main() {
 
 	createSharedObjects()
 
-	mRedisServer := NewMServer("", *port)
+	mRedisServer = NewMServer("", *port)
 
 	mRedisServer.mainLoop()
 }

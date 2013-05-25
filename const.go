@@ -73,100 +73,100 @@ const (
 	REDIS_ENCODING_ZIPLIST    = 5 /* Encoded as ziplist */
 	REDIS_ENCODING_INTSET     = 6 /* Encoded as intset */
 	REDIS_ENCODING_SKIPLIST   = 7 /* Encoded as skiplist */
-//
-//    /* Defines related to the dump file format. To store 32 bits lengths for short
-//    * keys requires a lot of space, so we check the most significant 2 bits of
-//    * the first byte to interpreter the length:
-//    *
-//    * 00|000000 => if the two MSB are 00 the len is the 6 bits of this byte
-//    * 01|000000 00000000 =>  01, the len is 14 byes, 6 bits + 8 bits of next byte
-//    * 10|000000 [32 bit integer] => if it's 01, a full 32 bit len will follow
-//    * 11|000000 this means: specially encoded object will follow. The six bits
-//    *           number specify the kind of object that follows.
-//    *           See the REDIS_RDB_ENC_* defines.
-//    *
-//    * Lenghts up to 63 are stored using a single byte, most DB keys, and may
-//    * values, will fit inside. */
-//    REDIS_RDB_6BITLEN = 0
-//    REDIS_RDB_14BITLEN = 1
-//    REDIS_RDB_32BITLEN = 2
-//    REDIS_RDB_ENCVAL = 3
-//    REDIS_RDB_LENERR UINT_MAX
-//
-//    /* When a length of a string object stored on disk has the first two bits
-//    * set, the remaining two bits specify a special encoding for the object
-//    * accordingly to the following defines: */
-//    REDIS_RDB_ENC_INT8 = 0        /* 8 bit signed integer */
-//    REDIS_RDB_ENC_INT16 = 1       /* 16 bit signed integer */
-//    REDIS_RDB_ENC_INT32 = 2       /* 32 bit signed integer */
-//    REDIS_RDB_ENC_LZF = 3         /* string compressed with FASTLZ */
-//
-//    /* AOF states */
-//    REDIS_AOF_OFF = 0             /* AOF is off */
-//    REDIS_AOF_ON = 1              /* AOF is on */
-//    REDIS_AOF_WAIT_REWRITE = 2    /* AOF waits rewrite to start appending */
-//
-//    /* Client flags */
-//    REDIS_SLAVE = 1       /* This client is a slave server */
-//    REDIS_MASTER = 2      /* This client is a master server */
-//    REDIS_MONITOR = 4     /* This client is a slave monitor, see MONITOR */
-//    REDIS_MULTI = 8       /* This client is in a MULTI context */
-//    REDIS_BLOCKED = 16    /* The client is waiting in a blocking operation */
-//    REDIS_DIRTY_CAS = 64  /* Watched keys modified. EXEC will fail. */
-//    REDIS_CLOSE_AFTER_REPLY = 128 /* Close after writing entire reply. */
-//    REDIS_UNBLOCKED = 256 /* This client was unblocked and is stored in
-//    server.unblocked_clients */
-//    REDIS_LUA_CLIENT = 512 /* This is a non connected client used by Lua */
-//    REDIS_ASKING = 1024   /* Client issued the ASKING command */
-//    REDIS_CLOSE_ASAP = 2048 /* Close this client ASAP */
-//
-//    /* Client request types */
-//    REDIS_REQ_INLINE = 1
-//    REDIS_REQ_MULTIBULK = 2
-//
-//    /* Client classes for client limits, currently used only for
-//    * the max-client-output-buffer limit implementation. */
-//    REDIS_CLIENT_LIMIT_CLASS_NORMAL 0
-//    REDIS_CLIENT_LIMIT_CLASS_SLAVE 1
-//    REDIS_CLIENT_LIMIT_CLASS_PUBSUB 2
-//    REDIS_CLIENT_LIMIT_NUM_CLASSES 3
-//
-//    /* Slave replication state - slave side */
-//    REDIS_REPL_NONE 0 /* No active replication */
-//    REDIS_REPL_CONNECT 1 /* Must connect to master */
-//    REDIS_REPL_CONNECTING 2 /* Connecting to master */
-//    REDIS_REPL_RECEIVE_PONG 3 /* Wait for PING reply */
-//    REDIS_REPL_TRANSFER 4 /* Receiving .rdb from master */
-//    REDIS_REPL_CONNECTED 5 /* Connected to master */
-//
-//    /* Synchronous read timeout - slave side */
-//    REDIS_REPL_SYNCIO_TIMEOUT 5
-//
-//    /* Slave replication state - from the point of view of master
-//    * Note that in SEND_BULK and ONLINE state the slave receives new updates
-//    * in its output queue. In the WAIT_BGSAVE state instead the server is waiting
-//    * to start the next background saving in order to send updates to it. */
-//    REDIS_REPL_WAIT_BGSAVE_START 3 /* master waits bgsave to start feeding it */
-//    REDIS_REPL_WAIT_BGSAVE_END 4 /* master waits bgsave to start bulk DB transmission */
-//    REDIS_REPL_SEND_BULK 5 /* master is sending the bulk DB */
-//    REDIS_REPL_ONLINE 6 /* bulk DB already transmitted, receive updates */
-//
-//    /* List related stuff */
-//    REDIS_HEAD 0
-//    REDIS_TAIL 1
-//
-//    /* Sort operations */
-//    REDIS_SORT_GET 0
-//    REDIS_SORT_ASC 1
-//    REDIS_SORT_DESC 2
-//    REDIS_SORTKEY_MAX 1024
-//
-//    /* Log levels */
-//    REDIS_DEBUG 0
-//    REDIS_VERBOSE 1
-//    REDIS_NOTICE 2
-//    REDIS_WARNING 3
-//    REDIS_LOG_RAW (1<<10) /* Modifier to log without timestamp */
+	//
+	//    /* Defines related to the dump file format. To store 32 bits lengths for short
+	//    * keys requires a lot of space, so we check the most significant 2 bits of
+	//    * the first byte to interpreter the length:
+	//    *
+	//    * 00|000000 => if the two MSB are 00 the len is the 6 bits of this byte
+	//    * 01|000000 00000000 =>  01, the len is 14 byes, 6 bits + 8 bits of next byte
+	//    * 10|000000 [32 bit integer] => if it's 01, a full 32 bit len will follow
+	//    * 11|000000 this means: specially encoded object will follow. The six bits
+	//    *           number specify the kind of object that follows.
+	//    *           See the REDIS_RDB_ENC_* defines.
+	//    *
+	//    * Lenghts up to 63 are stored using a single byte, most DB keys, and may
+	//    * values, will fit inside. */
+	//    REDIS_RDB_6BITLEN = 0
+	//    REDIS_RDB_14BITLEN = 1
+	//    REDIS_RDB_32BITLEN = 2
+	//    REDIS_RDB_ENCVAL = 3
+	//    REDIS_RDB_LENERR UINT_MAX
+	//
+	//    /* When a length of a string object stored on disk has the first two bits
+	//    * set, the remaining two bits specify a special encoding for the object
+	//    * accordingly to the following defines: */
+	//    REDIS_RDB_ENC_INT8 = 0        /* 8 bit signed integer */
+	//    REDIS_RDB_ENC_INT16 = 1       /* 16 bit signed integer */
+	//    REDIS_RDB_ENC_INT32 = 2       /* 32 bit signed integer */
+	//    REDIS_RDB_ENC_LZF = 3         /* string compressed with FASTLZ */
+	//
+	//    /* AOF states */
+	//    REDIS_AOF_OFF = 0             /* AOF is off */
+	//    REDIS_AOF_ON = 1              /* AOF is on */
+	//    REDIS_AOF_WAIT_REWRITE = 2    /* AOF waits rewrite to start appending */
+	//
+	//    /* Client flags */
+	//    REDIS_SLAVE = 1       /* This client is a slave server */
+	//    REDIS_MASTER = 2      /* This client is a master server */
+	//    REDIS_MONITOR = 4     /* This client is a slave monitor, see MONITOR */
+	//    REDIS_MULTI = 8       /* This client is in a MULTI context */
+	//    REDIS_BLOCKED = 16    /* The client is waiting in a blocking operation */
+	//    REDIS_DIRTY_CAS = 64  /* Watched keys modified. EXEC will fail. */
+	//    REDIS_CLOSE_AFTER_REPLY = 128 /* Close after writing entire reply. */
+	//    REDIS_UNBLOCKED = 256 /* This client was unblocked and is stored in
+	//    server.unblocked_clients */
+	//    REDIS_LUA_CLIENT = 512 /* This is a non connected client used by Lua */
+	//    REDIS_ASKING = 1024   /* Client issued the ASKING command */
+	//    REDIS_CLOSE_ASAP = 2048 /* Close this client ASAP */
+	//
+	//    /* Client request types */
+	//    REDIS_REQ_INLINE = 1
+	//    REDIS_REQ_MULTIBULK = 2
+	//
+	//    /* Client classes for client limits, currently used only for
+	//    * the max-client-output-buffer limit implementation. */
+	//    REDIS_CLIENT_LIMIT_CLASS_NORMAL 0
+	//    REDIS_CLIENT_LIMIT_CLASS_SLAVE 1
+	//    REDIS_CLIENT_LIMIT_CLASS_PUBSUB 2
+	//    REDIS_CLIENT_LIMIT_NUM_CLASSES 3
+	//
+	//    /* Slave replication state - slave side */
+	//    REDIS_REPL_NONE 0 /* No active replication */
+	//    REDIS_REPL_CONNECT 1 /* Must connect to master */
+	//    REDIS_REPL_CONNECTING 2 /* Connecting to master */
+	//    REDIS_REPL_RECEIVE_PONG 3 /* Wait for PING reply */
+	//    REDIS_REPL_TRANSFER 4 /* Receiving .rdb from master */
+	//    REDIS_REPL_CONNECTED 5 /* Connected to master */
+	//
+	//    /* Synchronous read timeout - slave side */
+	//    REDIS_REPL_SYNCIO_TIMEOUT 5
+	//
+	//    /* Slave replication state - from the point of view of master
+	//    * Note that in SEND_BULK and ONLINE state the slave receives new updates
+	//    * in its output queue. In the WAIT_BGSAVE state instead the server is waiting
+	//    * to start the next background saving in order to send updates to it. */
+	//    REDIS_REPL_WAIT_BGSAVE_START 3 /* master waits bgsave to start feeding it */
+	//    REDIS_REPL_WAIT_BGSAVE_END 4 /* master waits bgsave to start bulk DB transmission */
+	//    REDIS_REPL_SEND_BULK 5 /* master is sending the bulk DB */
+	//    REDIS_REPL_ONLINE 6 /* bulk DB already transmitted, receive updates */
+	//
+	//    /* List related stuff */
+	//    REDIS_HEAD 0
+	//    REDIS_TAIL 1
+	//
+	//    /* Sort operations */
+	//    REDIS_SORT_GET 0
+	//    REDIS_SORT_ASC 1
+	//    REDIS_SORT_DESC 2
+	//    REDIS_SORTKEY_MAX 1024
+	//
+	/* Log levels */
+	REDIS_DEBUG   = 0
+	REDIS_VERBOSE = 1
+	REDIS_NOTICE  = 2
+	REDIS_WARNING = 3
+	REDIS_LOG_RAW = (1 << 10) /* Modifier to log without timestamp */
 //
 //    /* Anti-warning macro... */
 //    REDIS_NOTUSED(V) ((void) V)

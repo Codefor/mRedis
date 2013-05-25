@@ -8,7 +8,6 @@ package main
 
 import (
 	"bufio"
-	"log"
 	"net"
 	"strconv"
 	"time"
@@ -64,19 +63,9 @@ func (m *MServer) NewClient(c *net.TCPConn) *redisClient {
 		//wbuf:    make([]byte, 1024*16),
 	}
 
-	//defualt select db 0
-	m.selectDB(client, 0)
+	//default select db 0
+	client.selectDB(0)
 	return client
-}
-
-func (m *MServer) selectDB(c *redisClient, idx int) int {
-	if idx < 0 || idx > m.dbCnt {
-		return REDIS_ERR
-	}
-
-	c.db = m.db[idx]
-
-	return REDIS_OK
 }
 
 func (m *MServer) getTCPAddr() (tcpAddr *net.TCPAddr) {
@@ -94,11 +83,11 @@ func (m *MServer) mainLoop() {
 
 func (m *MServer) process(c *net.TCPConn) {
 	remoteAddr := c.RemoteAddr().String()
-	log.Println(remoteAddr + " connected")
+	redisLog(REDIS_NOTICE, remoteAddr+" connected")
 	client := m.NewClient(c)
 
 	for {
-		log.Println("start another readQuery")
+		redisLog(REDIS_NOTICE, "start another readQuery")
 		t := make(chan bool, 1)
 
 		go func() {
@@ -109,38 +98,29 @@ func (m *MServer) process(c *net.TCPConn) {
 		select {
 		case <-t:
 			if client.lastErr != nil {
-				log.Println("readQuery encountered error", client.lastErr)
+				redisLog(REDIS_NOTICE, "readQuery encountered error", client.lastErr)
 				goto DISCONNECT
 			}
-			log.Println("start process query")
+			redisLog(REDIS_NOTICE, "start process query")
 			client.processCommand()
-			log.Println("end process query")
+			redisLog(REDIS_NOTICE, "end process query")
 		case <-time.After(m.timeout):
-			log.Println("readQuery timeout")
+			redisLog(REDIS_NOTICE, "readQuery timeout")
 			goto DISCONNECT
 		}
-		log.Println("end another readQuery")
+		redisLog(REDIS_NOTICE, "end another readQuery")
 	}
 DISCONNECT:
-	log.Println(client.lastErr)
+	redisLog(REDIS_NOTICE, client.lastErr)
 	client.close()
-	log.Println(remoteAddr + " disconnected")
+	redisLog(REDIS_NOTICE, remoteAddr+" disconnected")
 }
 
-/**
-func (m *MServer) readBulkData(bufr *bufio.Reader, size int) string {
-	bulk_buffer := make([]byte, size+2)
-	io.ReadFull(c.r, bulk_buffer)
-	data = string(bulk_buffer[0 : len(bulk_buffer)-2])
-	return
-}
-*/
-
-func assert(e error) {
-	if e != nil {
-		panic(e)
+func (m *MServer) rdbSave(rdb_filename string) int {
+	for idx := 0; idx < m.dbCnt; idx++ {
+		for key, value := range m.db[idx].dict {
+			redisLog(REDIS_DEBUG, key, value)
+		}
 	}
-}
-func redisPanic(msg string) {
-	panic(msg)
+	return REDIS_OK
 }

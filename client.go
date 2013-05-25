@@ -5,7 +5,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
-	"log"
+	//	"log"
 	"net"
 	//"strconv"
 	"strings"
@@ -40,6 +40,15 @@ type redisClient struct {
 	/* Response buffer */
 	bufpos int
 	wbuf   []byte
+}
+
+func (c *redisClient) selectDB(idx int) int {
+	if idx < 0 || idx > mRedisServer.dbCnt {
+		return REDIS_ERR
+	}
+
+	c.db = mRedisServer.db[idx]
+	return REDIS_OK
 }
 
 func (c *redisClient) addReplyLongLong(ll int64) {
@@ -93,14 +102,14 @@ func (c *redisClient) addReplyBulk(o *robj) {
 }
 
 func (c *redisClient) addReply(o *robj) {
-	log.Println(o)
+	redisLog(REDIS_NOTICE, "add Reply robj:", fmt.Sprintf("%v", o))
 	if o.encoding == REDIS_ENCODING_RAW {
 		c.bufw.Write([]byte(o.ptr.(string)))
 	} else if o.encoding == REDIS_ENCODING_INT {
 		//length := ll2string(c.wbuf, o.ptr.(int64))
 		//c.bufw.Write([]byte(strconv.FormatInt(o.ptr.(int64), 10) + "\r\n"))
 	}
-	log.Println("buffer writer,buffered:", c.bufw.Buffered(), " avai:", c.bufw.Available())
+	redisLog(REDIS_NOTICE, "buffer writer,buffered:", c.bufw.Buffered(), " avai:", c.bufw.Available())
 }
 
 func (c *redisClient) addReplyError(msg string) {
@@ -138,9 +147,9 @@ func (c *redisClient) processCommand() int {
 		goto END
 	}
 
-	log.Println(c.cmd, c.argv)
+	redisLog(REDIS_NOTICE, c.cmd, c.argv)
 	c.cmd.proc(c)
-	log.Println("bufw:", c.bufw.Buffered(), "avai:", c.bufw.Available())
+	redisLog(REDIS_NOTICE, "bufw:", c.bufw.Buffered(), "avai:", c.bufw.Available())
 END:
 	c.bufw.Flush()
 	c.reset()
@@ -189,18 +198,18 @@ func (c *redisClient) processMultibulkBuffer() int {
 			c.addReplyError("error")
 			return -1
 		}
-		//log.Println(c.qbuf[c.qbufi:c.qbufl],c.qbufi,c.qbuf[c.qbufi],c.qbuf[c.qbufi] != count_byte,count_byte)
+		//redisLog(REDIS_NOTICE,c.qbuf[c.qbufi:c.qbufl],c.qbufi,c.qbuf[c.qbufi],c.qbuf[c.qbufi] != count_byte,count_byte)
 		c.multibulklen, idx = bytes2ll(c.qbuf[c.qbufi:])
 		//123\r\nabc
 		c.qbufi += idx + 2
 	}
-	//log.Println(c.multibulklen,string(c.qbuf[c.qbufi:c.qbufl]),c.qbuf[c.qbufi:c.qbufl])
+	//redisLog(REDIS_NOTICE,c.multibulklen,string(c.qbuf[c.qbufi:c.qbufl]),c.qbuf[c.qbufi:c.qbufl])
 
 	for c.multibulklen > 0 {
-		//log.Println(c.multibulklen,c.bulklen)
+		//redisLog(REDIS_NOTICE,c.multibulklen,c.bulklen)
 		//$2\r\nab
 		if c.bulklen == -1 {
-			//log.Println(c.qbuf[c.qbufi:c.qbufl],lf_byte,bytes.IndexByte(c.qbuf[c.qbufi:c.qbufl],lf_byte))
+			//redisLog(REDIS_NOTICE,c.qbuf[c.qbufi:c.qbufl],lf_byte,bytes.IndexByte(c.qbuf[c.qbufi:c.qbufl],lf_byte))
 			newline := bytes.IndexByte(c.qbuf[c.qbufi:c.qbufl], lf_byte)
 			if newline == -1 {
 				c.lastErr = errors.New("some error")
@@ -214,13 +223,13 @@ func (c *redisClient) processMultibulkBuffer() int {
 
 			c.bulklen, idx = bytes2ll(c.qbuf[c.qbufi+1:])
 			c.qbufi += idx + 3
-			//log.Println(c.bulklen,string(c.qbuf[c.qbufi:c.qbufl]))
+			//redisLog(REDIS_NOTICE,c.bulklen,string(c.qbuf[c.qbufi:c.qbufl]))
 		}
-		//log.Println(c.qbuf[c.qbufi:int64(c.qbufi)+c.bulklen])
+		//redisLog(REDIS_NOTICE,c.qbuf[c.qbufi:int64(c.qbufi)+c.bulklen])
 		c.argv = append(c.argv, c.qbuf[c.qbufi:int64(c.qbufi)+c.bulklen])
 		c.qbufi += int(c.bulklen) + 2
 
-		//log.Println(c.argv)
+		//redisLog(REDIS_NOTICE,c.argv)
 		c.bulklen = -1
 		c.multibulklen--
 	}
@@ -245,7 +254,7 @@ func (c *redisClient) readQuery() {
 
 	//reset query buffer index
 	c.qbufi = 0
-	log.Println("query buffer:", c.qbuf[:c.qbufl], string(c.qbuf[:c.qbufl]))
+	redisLog(REDIS_NOTICE, "query buffer:", c.qbuf[:c.qbufl], string(c.qbuf[:c.qbufl]))
 	for c.qbufi < c.qbufl {
 		//set query type
 		if c.reqtype == 0 {
