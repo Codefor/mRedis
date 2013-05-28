@@ -32,7 +32,7 @@ func (db *Db) randomKey() interface{} {
 		return key
 	}
 
-	return &robj{}
+	return nil
 }
 
 func noPreloadGetKeys(cmd *redisCommand, argv **robj, argc int, numkeys *int, flags int) *int {

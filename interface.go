@@ -1,6 +1,8 @@
 package main
 
 import (
+	"container/list"
+	"log"
 	"strconv"
 )
 
@@ -23,17 +25,7 @@ type redisCommand struct {
 type redisCommandProc func(c *redisClient) int
 
 func getCommand(c *redisClient) int {
-	//the value must be string
-	key := string(c.argv[1])
-	if value, present := c.db.dict[key]; present {
-		redisLog(REDIS_DEBUG, "get command", value, present)
-		o := createStringObject(value.(string), 0)
-		c.addReplyBulk(o)
-	} else {
-		c.addReply(shared.nullbulk)
-	}
-	c.argv = c.argv[2:]
-	return REDIS_OK
+	return getGenericCommand(c)
 }
 
 func setCommand(c *redisClient) int {
@@ -43,18 +35,18 @@ func setCommand(c *redisClient) int {
 	value := string(c.argv[2])
 
 	redisLog(REDIS_NOTICE, "Command set:", string(key), string(value), c.argv)
-	c.db.set(string(key), value)
+	o := createStringObject(value, 0)
+	c.db.set(string(key), o)
 	redisLog(REDIS_NOTICE, "key "+string(key)+" set:"+string(value))
 
 	c.addReply(shared.ok)
-
-	c.argv = c.argv[3:]
 	return REDIS_OK
 }
 
 func setnxCommand(c *redisClient) int {
 	return REDIS_OK
 }
+
 func setexCommand(c *redisClient) int {
 	return REDIS_OK
 }
@@ -68,18 +60,15 @@ func appendCommand(c *redisClient) int {
 	toappendvalue := string(c.argv[2])
 
 	value, present := c.db.dict[key]
-	var newvalue string
 	if present {
-		newvalue = value.(string) + toappendvalue
+		value.(*robj).ptr = value.(*robj).ptr.(string) + toappendvalue
 	} else {
-		newvalue = toappendvalue
+		value.(*robj).ptr = toappendvalue
 	}
 
 	redisLog(REDIS_DEBUG, "append command", value)
-	c.db.set(key, newvalue)
-	c.addReplyLongLong(int64(len(newvalue)))
+	c.addReplyLongLong(int64(len(value.(*robj).ptr.(string))))
 
-	c.argv = c.argv[3:]
 	return REDIS_OK
 }
 
@@ -87,21 +76,38 @@ func strlenCommand(c *redisClient) int {
 	key := string(c.argv[1])
 	if value, present := c.db.dict[key]; present {
 		redisLog(REDIS_DEBUG, "strlen command", value, present)
-		c.addReplyLongLong(int64(len(value.(string))))
+		c.addReplyLongLong(int64(len(value.(*robj).ptr.(string))))
 	} else {
 		c.addReply(shared.czero)
 	}
 
-	c.argv = c.argv[2:]
 	return REDIS_OK
 }
 
 func delCommand(c *redisClient) int {
+	delCnt := 0
+
+	for _, key := range c.argv[1:] {
+		if _, present := c.db.dict[string(key)]; present {
+			delete(c.db.dict, string(key))
+			delCnt += 1
+		}
+	}
+
+	c.addReplyLongLong(int64(delCnt))
 	return REDIS_OK
 }
+
 func existsCommand(c *redisClient) int {
+	key := string(c.argv[1])
+	if _, present := c.db.dict[key]; present {
+		c.addReply(shared.cone)
+	} else {
+		c.addReply(shared.czero)
+	}
 	return REDIS_OK
 }
+
 func setbitCommand(c *redisClient) int {
 	return REDIS_OK
 }
@@ -124,17 +130,24 @@ func mgetCommand(c *redisClient) int {
 	return REDIS_OK
 }
 func rpushCommand(c *redisClient) int {
+	pushGenericCommand(c, 1)
 	return REDIS_OK
 }
 func lpushCommand(c *redisClient) int {
+	pushGenericCommand(c, 0)
 	return REDIS_OK
 }
+
 func rpushxCommand(c *redisClient) int {
+	pushxGenericCommand(c, 1)
 	return REDIS_OK
 }
+
 func lpushxCommand(c *redisClient) int {
+	pushxGenericCommand(c, 0)
 	return REDIS_OK
 }
+
 func linsertCommand(c *redisClient) int {
 	return REDIS_OK
 }
@@ -163,6 +176,75 @@ func lsetCommand(c *redisClient) int {
 	return REDIS_OK
 }
 func lrangeCommand(c *redisClient) int {
+	start, err := strconv.ParseInt(string(c.argv[2]), 10, 32)
+	if err != nil {
+		c.addReplyError("value is not an integer or out of range")
+		redisLog(REDIS_DEBUG, err)
+		return REDIS_ERR
+	}
+	end, err := strconv.ParseInt(string(c.argv[3]), 10, 32)
+
+	if err != nil {
+		redisLog(REDIS_DEBUG, err)
+		c.addReplyError("value is not an integer or out of range")
+		return REDIS_ERR
+	}
+
+	o, present := c.db.dict[string(c.argv[1])]
+	if present {
+		if checkType(c, o.(*robj), REDIS_LIST) == REDIS_ERR {
+			return REDIS_ERR
+		}
+		//container.list linked-double-list implement
+		llen := int64(o.(*robj).ptr.(*list.List).Len())
+		redisLog(REDIS_DEBUG, "lrange :", llen)
+		if start < 0 {
+			start += int64(llen)
+		}
+		if end < 0 {
+			end += int64(llen)
+		}
+		if end < 0 {
+			end = 0
+		}
+		if start > end || start >= int64(llen) {
+			c.addReply(shared.emptymultibulk)
+			return REDIS_ERR
+		}
+		if end >= int64(llen) {
+			end = int64(llen - 1)
+		}
+		rangelen := end - start + 1
+		redisLog(REDIS_DEBUG, "lrange :", rangelen, start, end)
+		c.addReplyMultiBulkLen(rangelen)
+
+		/**a->b->c->d->e->f
+		 * if start < llen /2,we search from the Front
+		 * else,we search from the Back
+		 */
+		if start > llen/2 {
+			start -= llen
+		}
+		//find the start node
+		ln := listIndex(o.(*robj).ptr.(*list.List), int(start))
+		log.Println(REDIS_DEBUG, ln.Value.(*robj))
+		/**
+		h := o.(*robj).ptr.(*list.List).Front()
+		for h != nil {
+			redisLog(REDIS_DEBUG, h.Value.(*robj).ptr.(string))
+			h = h.Next()
+		}*/
+		for rangelen > 0 {
+			redisLog(REDIS_DEBUG, "lrange:", ln.Value)
+			c.addReplyBulk(ln.Value.(*robj))
+			ln = ln.Next()
+			rangelen--
+		}
+	} else {
+		c.addReply(shared.emptymultibulk)
+		return REDIS_OK
+	}
+
 	return REDIS_OK
 }
 func ltrimCommand(c *redisClient) int {
@@ -309,22 +391,29 @@ func decrbyCommand(c *redisClient) int {
 func incrbyfloatCommand(c *redisClient) int {
 	return REDIS_OK
 }
+
 func getsetCommand(c *redisClient) int {
+	if getGenericCommand(c) == REDIS_ERR {
+		return REDIS_ERR
+	}
+	c.db.set(string(c.argv[1]), createStringObject(string(c.argv[2]), 0))
 	return REDIS_OK
 }
+
 func msetCommand(c *redisClient) int {
 	return REDIS_OK
 }
 func msetnxCommand(c *redisClient) int {
 	return REDIS_OK
 }
+
 func randomkeyCommand(c *redisClient) int {
-	key := c.db.randomKey().(*robj)
+	key := c.db.randomKey()
 	if key == nil {
 		c.addReply(shared.nullbulk)
 		return REDIS_ERR
 	}
-	c.addReplyBulk(key)
+	c.addReplyBulk(key.(*robj))
 	return REDIS_OK
 }
 
@@ -371,10 +460,16 @@ func dbsizeCommand(c *redisClient) int {
 func authCommand(c *redisClient) int {
 	return REDIS_OK
 }
+
 func pingCommand(c *redisClient) int {
+	c.addReply(shared.pong)
 	return REDIS_OK
 }
+
 func echoCommand(c *redisClient) int {
+	s := string(c.argv[1])
+	o := createStringObject(s, 0)
+	c.addReplyBulk(o)
 	return REDIS_OK
 }
 

@@ -61,6 +61,11 @@ func (c *redisClient) addReplyLongLong(ll int64) {
 	}
 }
 
+func (c *redisClient) addReplyMultiBulkLen(length int64) {
+	//count_byte '*'
+	c.addReplyLongLongWithPrefix(length, count_byte)
+}
+
 func (c *redisClient) addReplyLongLongWithPrefix(ll int64, prefix byte) {
 	redisLog(REDIS_DEBUG, "addReplyLongLongWithPrefix: ", ll, prefix)
 	var (
@@ -102,6 +107,7 @@ func (c *redisClient) addReplyBulkLen(o *robj) {
 }
 
 func (c *redisClient) addReplyBulk(o *robj) {
+	redisLog(REDIS_NOTICE, "add Reply Bulk:", fmt.Sprintf("%v", o))
 	c.addReplyBulkLen(o)
 	c.addReply(o)
 	c.addReply(shared.crlf)

@@ -151,10 +151,10 @@ const (
 	//    REDIS_REPL_SEND_BULK 5 /* master is sending the bulk DB */
 	//    REDIS_REPL_ONLINE 6 /* bulk DB already transmitted, receive updates */
 	//
-	//    /* List related stuff */
-	//    REDIS_HEAD 0
-	//    REDIS_TAIL 1
-	//
+	/* List related stuff */
+	REDIS_HEAD = 0
+	REDIS_TAIL = 1
+
 	//    /* Sort operations */
 	//    REDIS_SORT_GET 0
 	//    REDIS_SORT_ASC 1
