@@ -4,11 +4,12 @@ import (
 	"flag"
 	"log"
 	"os"
+	"runtime"
 )
 
 //config
 const (
-	LOGLEVEL = 0
+	LOGLEVEL = 0 //log all that great than LOGLEVEL,other wise pass
 )
 
 var (
@@ -16,6 +17,10 @@ var (
 )
 
 func main() {
+	// sets the max number of CPUs: use all logical CPUs
+	runtime.GOMAXPROCS(runtime.NumCPU())
+	//runtime.MemStats.EnableGC = false
+
 	log.SetFlags(23)
 
 	var port = flag.Int("p", 8080, "tcp listen port")

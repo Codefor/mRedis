@@ -16,3 +16,24 @@ func getGenericCommand(c *redisClient) int {
 	}
 	return REDIS_OK
 }
+
+func setGenericCommand(c *redisClient, nx bool) int {
+	key := string(c.argv[1])
+	value := string(c.argv[2])
+
+	_, present := c.db.dict[key]
+	if present && nx {
+		//setnx do set only if key does not exist
+		c.addReply(shared.czero)
+		return REDIS_ERR
+	}
+
+	c.db.set(string(key), createStringObject(value, 0))
+	if nx {
+		c.addReply(shared.cone)
+	} else {
+		c.addReply(shared.ok)
+	}
+
+	return REDIS_OK
+}

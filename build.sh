@@ -1,5 +1,5 @@
 #!/bin/bash
-ALL='server.go client.go robj.go shared.go protocol.go util.go interface.go db.go const.go main.go log.go t_list.go t_string.go'
+ALL='server.go client.go robj.go shared.go protocol.go util.go interface.go db.go const.go main.go log.go t_list.go t_string.go rdb.go'
 
 echo formatting...
 for i in $ALL

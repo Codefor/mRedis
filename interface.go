@@ -1,8 +1,10 @@
 package main
 
 import (
+	"bufio"
+	"bytes"
 	"container/list"
-	"log"
+	"hash/crc64"
 	"strconv"
 )
 
@@ -29,22 +31,11 @@ func getCommand(c *redisClient) int {
 }
 
 func setCommand(c *redisClient) int {
-	//the value must be string
-
-	key := c.argv[1]
-	value := string(c.argv[2])
-
-	redisLog(REDIS_NOTICE, "Command set:", string(key), string(value), c.argv)
-	o := createStringObject(value, 0)
-	c.db.set(string(key), o)
-	redisLog(REDIS_NOTICE, "key "+string(key)+" set:"+string(value))
-
-	c.addReply(shared.ok)
-	return REDIS_OK
+	return setGenericCommand(c, false)
 }
 
 func setnxCommand(c *redisClient) int {
-	return REDIS_OK
+	return setGenericCommand(c, true)
 }
 
 func setexCommand(c *redisClient) int {
@@ -118,8 +109,52 @@ func setrangeCommand(c *redisClient) int {
 	return REDIS_OK
 }
 func getrangeCommand(c *redisClient) int {
+	start, err := strconv.ParseInt(string(c.argv[2]), 10, 32)
+	if err != nil {
+		c.addReplyError("value is not an integer or out of range")
+		redisLog(REDIS_DEBUG, err)
+		return REDIS_ERR
+	}
+	end, err := strconv.ParseInt(string(c.argv[3]), 10, 32)
+
+	if err != nil {
+		redisLog(REDIS_DEBUG, err)
+		c.addReplyError("value is not an integer or out of range")
+		return REDIS_ERR
+	}
+	o, present := c.db.dict[string(c.argv[1])]
+	if present {
+		llen := int64(len(o.(*robj).ptr.(string)))
+		redisLog(REDIS_DEBUG, "lrange :", llen)
+
+		if start < 0 {
+			start += int64(llen)
+		}
+		if end < 0 {
+			end += int64(llen)
+		}
+		if start < 0 {
+			start = 0
+		}
+		if end < 0 {
+			end = 0
+		}
+		if start > end || start >= int64(llen) {
+			c.addReply(shared.emptybulk)
+			return REDIS_ERR
+		}
+		if end >= int64(llen) {
+			end = int64(llen - 1)
+		}
+		c.addReply(createStringObject(o.(*robj).ptr.(string)[start:end], 0))
+	} else {
+		c.addReply(shared.emptybulk)
+		return REDIS_OK
+	}
+
 	return REDIS_OK
 }
+
 func incrCommand(c *redisClient) int {
 	return REDIS_OK
 }
@@ -227,7 +262,6 @@ func lrangeCommand(c *redisClient) int {
 		}
 		//find the start node
 		ln := listIndex(o.(*robj).ptr.(*list.List), int(start))
-		log.Println(REDIS_DEBUG, ln.Value.(*robj))
 		/**
 		h := o.(*robj).ptr.(*list.List).Front()
 		for h != nil {
@@ -474,7 +508,7 @@ func echoCommand(c *redisClient) int {
 }
 
 func saveCommand(c *redisClient) int {
-	if mRedisServer.rdbSave("") != REDIS_OK {
+	if mRedisServer.rdbSave("dump.rdb") != REDIS_OK {
 		c.addReply(shared.err)
 		return REDIS_ERR
 	} else {
@@ -484,7 +518,7 @@ func saveCommand(c *redisClient) int {
 }
 
 func bgsaveCommand(c *redisClient) int {
-	go mRedisServer.rdbSave("")
+	go mRedisServer.rdbSave("dump.rdb")
 	c.addReply(shared.ok)
 	return REDIS_OK
 }
@@ -577,14 +611,42 @@ func migrateCommand(c *redisClient) int {
 	return REDIS_OK
 }
 func dumpCommand(c *redisClient) int {
+	key := string(c.argv[1])
+	bbuf := new(bytes.Buffer)
+	buf := bufio.NewWriter(bbuf)
+
+	o, present := c.db.dict[key]
+	if present {
+		rdbSaveObjectType(buf, o.(*robj))
+		rdbSaveObject(buf, o.(*robj))
+
+		bbuf.Write([]byte{
+			byte(REDIS_RDB_VERSION & 0xff),
+			byte((REDIS_RDB_VERSION >> 8) & 0xff),
+		})
+		t := crc64.MakeTable(crc64.ISO)
+		h := crc64.New(t)
+		bbuf.Write(h.Sum(bbuf.Bytes()))
+		c.addReplyBulk(createStringObject(bbuf.String(), 0))
+	} else {
+		c.addReply(shared.nullbulk)
+		return REDIS_ERR
+	}
 	return REDIS_OK
 }
+
 func objectCommand(c *redisClient) int {
 	return REDIS_OK
 }
+
 func clientCommand(c *redisClient) int {
+	if string(c.argv[1]) == "list" && len(c.argv) == 2 {
+		o := getAllClientsInfoString()
+		c.addReplyBulkCBuffer(o)
+	}
 	return REDIS_OK
 }
+
 func evalCommand(c *redisClient) int {
 	return REDIS_OK
 }

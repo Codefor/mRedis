@@ -8,7 +8,11 @@ package main
 
 import (
 	"bufio"
+	"bytes"
+	"fmt"
+	//	"io"
 	"net"
+	"os"
 	"strconv"
 	"time"
 )
@@ -27,6 +31,7 @@ type MServer struct {
 	tcpAddr  *net.TCPAddr
 	listener *net.TCPListener
 	timeout  time.Duration
+	clients  []*redisClient
 }
 
 func NewMServer(host string, port int) *MServer {
@@ -77,14 +82,18 @@ func (m *MServer) getTCPAddr() (tcpAddr *net.TCPAddr) {
 func (m *MServer) mainLoop() {
 	for {
 		c, _ := m.listener.AcceptTCP()
-		go m.process(c)
+
+		client := m.NewClient(c)
+		//record the clients,to show in `client list`
+		m.clients = append(m.clients, client)
+
+		go m.process(client)
 	}
 }
 
-func (m *MServer) process(c *net.TCPConn) {
-	remoteAddr := c.RemoteAddr().String()
+func (m *MServer) process(client *redisClient) {
+	remoteAddr := client.c.RemoteAddr().String()
 	redisLog(REDIS_NOTICE, remoteAddr+" connected")
-	client := m.NewClient(c)
 
 	for {
 		redisLog(REDIS_NOTICE, "start another readQuery")
@@ -117,10 +126,52 @@ DISCONNECT:
 }
 
 func (m *MServer) rdbSave(rdb_filename string) int {
+	var (
+		magic []byte
+		err   error
+	)
+
+	tmpFile := fmt.Sprintf("temp-%d.rdb", os.Getpid())
+
+	f_out_rdb, err := os.Open(tmpFile)
+	if err != nil {
+		redisLog(REDIS_WARNING, err)
+		return REDIS_ERR
+	}
+	defer f_out_rdb.Close()
+	fp := bufio.NewWriter(f_out_rdb)
+
+	copy(magic, fmt.Sprintf("REDIS%04d", REDIS_RDB_VERSION))
+	if rdbWriteRaw(fp, magic, len(magic)) != REDIS_OK {
+		goto werr
+	}
+
 	for idx := 0; idx < m.dbCnt; idx++ {
 		for key, value := range m.db[idx].dict {
+			//save SELECT DB opcode
+			if rdbSaveType(fp, REDIS_RDB_OPCODE_SELECTDB) != REDIS_OK {
+				goto werr
+			}
+			if rdbSaveLen(fp, uint32(idx)) != REDIS_OK {
+				goto werr
+			}
 			redisLog(REDIS_DEBUG, key, value)
 		}
 	}
-	return REDIS_OK
+werr:
+	return REDIS_ERR
+}
+
+func getAllClientsInfoString() []byte {
+	s := new(bytes.Buffer)
+	for _, c := range mRedisServer.clients {
+		s.Write([]byte(getClientInfoString(c)))
+		s.Write([]byte("\n"))
+	}
+
+	return s.Bytes()
+}
+
+func getClientInfoString(c *redisClient) string {
+	return "Addr:" + c.c.RemoteAddr().String()
 }

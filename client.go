@@ -61,6 +61,12 @@ func (c *redisClient) addReplyLongLong(ll int64) {
 	}
 }
 
+func (c *redisClient) addReplyBulkCBuffer(s []byte) {
+	c.addReplyLongLongWithPrefix(int64(len(s)), '$')
+	c.addReplyString(s)
+	c.addReply(shared.crlf)
+}
+
 func (c *redisClient) addReplyMultiBulkLen(length int64) {
 	//count_byte '*'
 	c.addReplyLongLongWithPrefix(length, count_byte)
