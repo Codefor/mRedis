@@ -1,14 +1,15 @@
 #!/bin/bash
-ALL='server.go client.go robj.go shared.go protocol.go util.go interface.go db.go const.go main.go log.go t_list.go t_string.go rdb.go'
+
+TARGET=mRedis
+
+SOURCES='server.go client.go robj.go shared.go protocol.go util.go interface.go db.go const.go main.go log.go t_list.go t_string.go rdb.go'
 
 echo formatting...
-for i in $ALL
-    do
-        go fmt $i
-    done
+go fmt $SOURCES
 
 echo building...
-BUILD=`go build $ALL`
+`go build -o $TARGET -p 4 $SOURCES`
+
 if [ $? != 0 ]
 then
     echo build failed
@@ -16,4 +17,4 @@ then
 fi
 
 echo trying to run...
-./server
+./$TARGET

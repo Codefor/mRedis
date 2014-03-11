@@ -34,7 +34,7 @@ type MServer struct {
 	clients  []*redisClient
 }
 
-func NewMServer(host string, port int) *MServer {
+func NewMServer(host string, port int) (*MServer, error) {
 	s := MServer{
 		host: host,
 		port: port,
@@ -51,10 +51,10 @@ func NewMServer(host string, port int) *MServer {
 	}
 
 	s.tcpAddr = s.getTCPAddr()
-	s.listener, _ = net.ListenTCP("tcp", s.tcpAddr)
+	s.listener, err = net.ListenTCP("tcp", s.tcpAddr)
 	s.timeout = 6 * 3600 * time.Second
 
-	return &s
+	return &s, err
 }
 
 func (m *MServer) NewClient(c *net.TCPConn) *redisClient {

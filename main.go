@@ -14,6 +14,7 @@ const (
 
 var (
 	mRedisServer *MServer
+	err          error
 )
 
 func main() {
@@ -34,7 +35,10 @@ func main() {
 
 	createSharedObjects()
 
-	mRedisServer = NewMServer("", *port)
+	mRedisServer, err = NewMServer("", *port)
+	if err != nil {
+		log.Fatal(err)
+	}
 
 	mRedisServer.mainLoop()
 }
