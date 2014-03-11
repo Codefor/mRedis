@@ -14,7 +14,16 @@ if [ $? != 0 ]
 then
     echo build failed
     exit -1
+else
+    echo build success
 fi
 
-echo trying to run...
-./$TARGET
+if [ $# -gt 0 ]
+then
+    if [ $1 = 'r' ] || [ $1 = 'run' ]
+    then
+	shift
+	echo trying to run...
+	./$TARGET $@
+    fi
+fi

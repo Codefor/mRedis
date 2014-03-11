@@ -172,46 +172,47 @@ const (
 	REDIS_NOTICE  = 2
 	REDIS_WARNING = 3
 	REDIS_LOG_RAW = (1 << 10) /* Modifier to log without timestamp */
-//
-//    /* Anti-warning macro... */
-//    REDIS_NOTUSED(V) ((void) V)
-//
-//    ZSKIPLIST_MAXLEVEL 32 /* Should be enough for 2^32 elements */
-//    ZSKIPLIST_P 0.25      /* Skiplist P = 1/4 */
-//
-//    /* Append only defines */
-//    AOF_FSYNC_NO 0
-//    AOF_FSYNC_ALWAYS 1
-//    AOF_FSYNC_EVERYSEC 2
-//
-//    /* Zip structure related defaults */
-//    REDIS_HASH_MAX_ZIPLIST_ENTRIES 512
-//    REDIS_HASH_MAX_ZIPLIST_VALUE 64
-//    REDIS_LIST_MAX_ZIPLIST_ENTRIES 512
-//    REDIS_LIST_MAX_ZIPLIST_VALUE 64
-//    REDIS_SET_MAX_INTSET_ENTRIES 512
-//    REDIS_ZSET_MAX_ZIPLIST_ENTRIES 128
-//    REDIS_ZSET_MAX_ZIPLIST_VALUE 64
-//
-//    /* Sets operations codes */
-//    REDIS_OP_UNION 0
-//    REDIS_OP_DIFF 1
-//    REDIS_OP_INTER 2
-//
-//    /* Redis maxmemory strategies */
-//    REDIS_MAXMEMORY_VOLATILE_LRU 0
-//    REDIS_MAXMEMORY_VOLATILE_TTL 1
-//    REDIS_MAXMEMORY_VOLATILE_RANDOM 2
-//    REDIS_MAXMEMORY_ALLKEYS_LRU 3
-//    REDIS_MAXMEMORY_ALLKEYS_RANDOM 4
-//    REDIS_MAXMEMORY_NO_EVICTION 5
-//
-//    /* Scripting */
-//    REDIS_LUA_TIME_LIMIT 5000 /* milliseconds */
-//
-//    /* Units */
-//    UNIT_SECONDS 0
-//    UNIT_MILLISECONDS 1
+	//
+	//    /* Anti-warning macro... */
+	//    REDIS_NOTUSED(V) ((void) V)
+	//
+	//    ZSKIPLIST_MAXLEVEL 32 /* Should be enough for 2^32 elements */
+	//    ZSKIPLIST_P 0.25      /* Skiplist P = 1/4 */
+	//
+	//    /* Append only defines */
+	//    AOF_FSYNC_NO 0
+	//    AOF_FSYNC_ALWAYS 1
+	//    AOF_FSYNC_EVERYSEC 2
+	//
+	//    /* Zip structure related defaults */
+	//    REDIS_HASH_MAX_ZIPLIST_ENTRIES 512
+	//    REDIS_HASH_MAX_ZIPLIST_VALUE 64
+	//    REDIS_LIST_MAX_ZIPLIST_ENTRIES 512
+	//    REDIS_LIST_MAX_ZIPLIST_VALUE 64
+	//    REDIS_SET_MAX_INTSET_ENTRIES 512
+	//    REDIS_ZSET_MAX_ZIPLIST_ENTRIES 128
+	//    REDIS_ZSET_MAX_ZIPLIST_VALUE 64
+	//
+	//    /* Sets operations codes */
+	//    REDIS_OP_UNION 0
+	//    REDIS_OP_DIFF 1
+	//    REDIS_OP_INTER 2
+	//
+	//    /* Redis maxmemory strategies */
+	//    REDIS_MAXMEMORY_VOLATILE_LRU 0
+	//    REDIS_MAXMEMORY_VOLATILE_TTL 1
+	//    REDIS_MAXMEMORY_VOLATILE_RANDOM 2
+	//    REDIS_MAXMEMORY_ALLKEYS_LRU 3
+	//    REDIS_MAXMEMORY_ALLKEYS_RANDOM 4
+	//    REDIS_MAXMEMORY_NO_EVICTION 5
+	//
+	//    /* Scripting */
+	//    REDIS_LUA_TIME_LIMIT 5000 /* milliseconds */
+	//
+	/* Units */
+	UNIT_SECONDS      = 0
+	UNIT_MILLISECONDS = 1
+
 //
 //    /* SHUTDOWN flags */
 //    REDIS_SHUTDOWN_SAVE 1       /* Force SAVE on SHUTDOWN even if no save

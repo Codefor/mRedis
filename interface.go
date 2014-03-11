@@ -473,18 +473,27 @@ func renameCommand(c *redisClient) int {
 func renamenxCommand(c *redisClient) int {
 	return REDIS_OK
 }
+
 func expireCommand(c *redisClient) int {
+	expireGenericCommand(c, mstime(), UNIT_SECONDS)
 	return REDIS_OK
 }
+
 func expireatCommand(c *redisClient) int {
+	expireGenericCommand(c, 0, UNIT_SECONDS)
 	return REDIS_OK
 }
+
 func pexpireCommand(c *redisClient) int {
+	expireGenericCommand(c, mstime(), UNIT_MILLISECONDS)
 	return REDIS_OK
 }
+
 func pexpireatCommand(c *redisClient) int {
+	expireGenericCommand(c, 0, UNIT_MILLISECONDS)
 	return REDIS_OK
 }
+
 func keysCommand(c *redisClient) int {
 	return REDIS_OK
 }
